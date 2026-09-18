@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Withdraw Funds - Online Banking Management System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div id="navbar-container"></div>
+
+  <div class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <div id="withdraw-alert" class="alert-feedback mb-3"></div>
+
+        <div class="banking-card shadow-sm">
+          <div class="banking-card-header bg-danger text-white py-3">
+            <h4 class="mb-0 fw-bold"><i class="bi bi-dash-circle-fill me-2"></i> Withdraw Money</h4>
+          </div>
+          <div class="banking-card-body p-4">
+            <!-- Account Info Summary -->
+            <div class="bg-light p-3 rounded-3 mb-4 d-flex justify-content-between align-items-center">
+              <div>
+                <small class="text-muted d-block">Source Account</small>
+                <span id="withdraw-acc-num" class="fw-bold font-monospace">Loading...</span>
+              </div>
+              <div class="text-end">
+                <small class="text-muted d-block">Available Balance</small>
+                <span id="withdraw-current-balance" class="fw-bold text-danger fs-5">₹ 0.00</span>
+              </div>
+            </div>
+
+            <form id="withdraw-form">
+              <div class="mb-3">
+                <label for="withdraw-amount" class="form-label fw-semibold">Withdrawal Amount (₹)</label>
+                <div class="input-group input-group-lg">
+                  <span class="input-group-text bg-white fw-bold">₹</span>
+                  <input type="number" class="form-control fw-bold" id="withdraw-amount" placeholder="0.00" min="1" step="0.01" required>
+                </div>
+              </div>
+
+              <!-- Quick Amount Buttons -->
+              <div class="mb-3">
+                <small class="text-muted d-block mb-2 fw-semibold">Quick Amounts:</small>
+                <div class="d-flex flex-wrap gap-2">
+                  <button type="button" class="quick-amount-btn" onclick="setWithdrawAmount(500)">₹500</button>
+                  <button type="button" class="quick-amount-btn" onclick="setWithdrawAmount(1000)">₹1,000</button>
+                  <button type="button" class="quick-amount-btn" onclick="setWithdrawAmount(2000)">₹2,000</button>
+                  <button type="button" class="quick-amount-btn" onclick="setWithdrawAmount(5000)">₹5,000</button>
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <label for="withdraw-desc" class="form-label fw-semibold">Description / Remarks (Optional)</label>
+                <input type="text" class="form-control" id="withdraw-desc" placeholder="e.g. ATM withdrawal, Personal expenses">
+              </div>
+
+              <button type="submit" id="btn-withdraw-submit" class="btn btn-danger btn-lg w-100 fw-semibold">
+                <i class="bi bi-dash-circle me-1"></i> Confirm & Process Withdrawal
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container text-center">
+      <p class="mb-0 text-muted small">Online Banking System &bull; Secure Simulation &bull; Umesh Patil</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    let currentBalance = 0;
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      Auth.requireAuth();
+      renderNavbar("dashboard");
+
+      await loadWithdrawAccount();
+
+      document.getElementById("withdraw-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const amount = Number(document.getElementById("withdraw-amount").value);
+        const desc = document.getElementById("withdraw-desc").value.trim();
+
+        if (amount > currentBalance) {
+          showAlert("withdraw-alert", "Insufficient balance for this transaction.", "danger");
+          return;
+        }
+
+        const btn = document.getElementById("btn-withdraw-submit");
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Processing Withdrawal...`;
+
+        try {
+          const res = await apiFetch("/transactions/withdraw", {
+            method: "POST",
+            body: JSON.stringify({ amount, description: desc })
+          });
+
+          if (res.success && res.data) {
+            showAlert("withdraw-alert", `Successfully withdrawn ${formatCurrency(res.data.amount)}! Reference: <strong>${res.data.transactionReference}</strong>. New Balance: <strong>${formatCurrency(res.data.balanceAfterTransaction)}</strong>`, "success");
+            document.getElementById("withdraw-form").reset();
+            await loadWithdrawAccount();
+          }
+        } catch (err) {
+          showAlert("withdraw-alert", err.message, "danger");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<i class="bi bi-dash-circle me-1"></i> Confirm & Process Withdrawal`;
+        }
+      });
+    });
+
+    async function loadWithdrawAccount() {
+      try {
+        const res = await apiFetch("/accounts/me");
+        if (res.success && res.data) {
+          currentBalance = Number(res.data.balance);
+          document.getElementById("withdraw-acc-num").textContent = res.data.accountNumber;
+          document.getElementById("withdraw-current-balance").textContent = formatCurrency(currentBalance);
+        }
+      } catch (err) {
+        showAlert("withdraw-alert", err.message, "danger");
+      }
+    }
+
+    function setWithdrawAmount(val) {
+      document.getElementById("withdraw-amount").value = val;
+    }
+  </script>
+</body>
+</html>
